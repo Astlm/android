@@ -91,7 +91,7 @@ private val ACCESSIBILITY_SUPPORTED_BROWSERS = listOf(
         },
     ),
     Browser(packageName = "com.yjllq.internet", urlFieldId = "search_box"),
-    Browser(packageName = "com.yjllq.kito", urlFieldId = "search_box"),
+    Browser(packageName = "com.yjllq.chrome.beta", urlFieldId = "search_box"),
     Browser(packageName = "com.yujian.ResideMenuDemo", urlFieldId = "search_box"),
     Browser(packageName = "com.z28j.feel", urlFieldId = "g2"),
     Browser(packageName = "idm.internet.download.manager", urlFieldId = "search"),
