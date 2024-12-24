@@ -1,25 +1,86 @@
-name: 简易构建
+name: Build
 
 on:
-  workflow_dispatch:  # 允许手动触发工作流
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version-name:
+        description: "Optional. Version string to use, in X.Y.Z format. Overrides default in the project."
+        required: false
+        type: string
+      version-code:
+        description: "Optional. Build number to use. Overrides default of GitHub run number."
+        required: false
+        type: number
+      distribute-to-firebase:
+        description: "Optional. Distribute artifacts to Firebase."
+        required: false
+        default: false
+        type: boolean
 
 env:
   JAVA_VERSION: 17
+  GITHUB_ACTION_RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
 jobs:
   build:
-    name: 构建
-    runs-on: ubuntu-latest
+    name: Build
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: 检出代码库
-        uses: actions/checkout@v4.2.2
+      - name: Check out repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: 设置 JDK
-        uses: actions/setup-java@v4.5.0
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@cc4fc85e6b35bafd578d5ffbc76a5518407e1af0 # v4.2.1
+
+      - name: Cache Gradle files
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-v2-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-v2-
+
+      - name: Cache build output
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: |
+            ${{ github.workspace }}/build-cache
+          key: ${{ runner.os }}-build-cache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
+      - name: Configure JDK
+        uses: actions/setup-java@8df1039502a15bceb9433410b1a100fbe190c53b # v4.5.0
         with:
           distribution: "temurin"
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: 构建项目
-        run: ./gradlew build
+      - name: Configure Ruby
+        uses: ruby/setup-ruby@2a18b06812b0e15bb916e1df298d3e740422c47e # v1.203.0
+        with:
+          bundler-cache: true
+
+      - name: Install Fastlane
+        run: |
+          gem install bundler:2.2.27
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+
+      - name: Check
+        run: bundle exec fastlane check
+
+      - name: Build
+        run: bundle exec fastlane assembleDebugApks
+
+      - name: Upload test reports on failure
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: failure()
+        with:
+          name: test-reports
+          path: app/build/reports/tests/
